@@ -1,0 +1,134 @@
+# ============================================================================
+# Ibex小型化故障注入测试系统 — Vivado工程文件清单
+# ============================================================================
+#
+# 项目根目录: E:\FPGA_FI_UI
+#
+# 使用方式:
+#   1. 在Vivado中 Add Sources → Add Files，导入下方所有设计文件
+#   2. 在Vivado中设置 Verilog Include Paths（见下方列表）
+#   3. 添加约束文件 ibex_fi.xdc
+#   4. 通过IP Catalog生成所需Xilinx IP（见下方IP清单）
+#
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# 一、设计源文件（Verilog / SystemVerilog）
+# ----------------------------------------------------------------------------
+
+# --- A. FI 新增文件 (ibex/rtl/fi/) ---
+ibex/rtl/fi/ibex_fi_top.sv                      # 顶层模块
+ibex/rtl/fi/ibex_fi_wrapper.sv                  # Ibex 最小系统封装
+ibex/rtl/fi/ibex_fi_compare.sv                  # 32路32-bit寄存器比较器
+ibex/rtl/fi/ibex_register_file_fpga_fi.sv       # 自定义寄存器文件（导出全部32寄存器）
+
+# --- B. Ibex CPU 核心 (ibex/rtl/) ---
+# 编译顺序敏感：ibex_pkg.sv 必须最先编译（定义全局类型/枚举）
+ibex/rtl/ibex_pkg.sv                             # ★ 必须先编译 — 全局pakage头文件
+ibex/rtl/ibex_core.sv                            # CPU核心顶层
+ibex/rtl/ibex_alu.sv                             # 算术逻辑单元
+ibex/rtl/ibex_compressed_decoder.sv              # 压缩指令译码器
+ibex/rtl/ibex_controller.sv                      # 流水线控制器
+ibex/rtl/ibex_counter.sv                         # 性能计数器基础单元
+ibex/rtl/ibex_cs_registers.sv                    # CSR寄存器组
+ibex/rtl/ibex_csr.sv                             # 单CSR单元
+ibex/rtl/ibex_decoder.sv                         # 指令译码器
+ibex/rtl/ibex_ex_block.sv                        # 执行模块（ALU + 乘除法器）
+ibex/rtl/ibex_id_stage.sv                        # 译码阶段
+ibex/rtl/ibex_if_stage.sv                        # 取指阶段
+ibex/rtl/ibex_load_store_unit.sv                 # 访存单元
+ibex/rtl/ibex_multdiv_fast.sv                    # 快速乘除法器
+ibex/rtl/ibex_multdiv_slow.sv                    # 慢速乘除法器（备选）
+ibex/rtl/ibex_prefetch_buffer.sv                 # 预取缓冲区
+ibex/rtl/ibex_fetch_fifo.sv                      # 取指FIFO
+ibex/rtl/ibex_wb_stage.sv                        # 写回阶段（未使用，但编译需要）
+
+# --- C. 共享/通用IP (ibex/shared/ + ibex/vendor/) ---
+ibex/shared/rtl/ram_2p.sv                        # 双口BRAM
+ibex/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_ram_2p.sv         # BRAM底层实现
+ibex/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_ram_2p_pkg.sv     # BRAM包定义
+
+# --- D. 现有故障注入模块 (rtl/new/) ---
+rtl/new/fault_count.v                            # UART协议 / 窗口管理 / 结果FIFO（复用）
+
+# ----------------------------------------------------------------------------
+# 二、Verilog Include 文件（通过 `include 引用）
+# ----------------------------------------------------------------------------
+# 以下文件不被直接编译，但必须加入 Include Paths
+#
+# include路径 1: ibex/vendor/lowrisc_ip/ip/prim/rtl/
+#   prim_assert.sv                    — 断言宏定义（`include "prim_assert.sv"）
+#   prim_assert_dummy_macros.svh      — SYNTHESIS模式下的空宏（被prim_assert.sv包含）
+#   prim_assert_sec_cm.svh            — 安全断言宏（被prim_assert.sv包含）
+#   prim_flop_macros.sv               — 触发器宏（被prim_assert.sv包含）
+#   prim_util_memload.svh             — $readmemh辅助函数（被prim_ram_2p.sv包含）
+#
+# include路径 2: ibex/vendor/lowrisc_ip/dv/sv/dv_utils/
+#   dv_fcov_macros.svh                — 功能覆盖率宏（被ibex_core.sv包含）
+
+# ----------------------------------------------------------------------------
+# 三、Verilog Include 搜索路径（在 Vivado 中设置）
+# ----------------------------------------------------------------------------
+# 设置方法: Tools → Settings → General → Verilog Options → Verilog Include Directories
+# 或在 Sources 窗格中右键 Design Sources → Source Node Properties → Include Directories
+#
+# 需要添加以下路径（所有路径相对于项目根 E:\FPGA_FI_UI）：
+#
+#   1. ibex/rtl/                                           (ibex_pkg.sv等)
+#   2. ibex/rtl/fi/                                        (FI模块)
+#   3. ibex/shared/rtl/                                    (ram_2p.sv)
+#   4. ibex/vendor/lowrisc_ip/ip/prim/rtl/                 (prim_assert.sv系列)
+#   5. ibex/vendor/lowrisc_ip/ip/prim_generic/rtl/         (prim_ram_2p.sv系列)
+#   6. ibex/vendor/lowrisc_ip/dv/sv/dv_utils/              (dv_fcov_macros.svh)
+#   7. rtl/new/                                            (fault_count.v)
+
+# ----------------------------------------------------------------------------
+# 四、编译顺序建议
+# ----------------------------------------------------------------------------
+# Vivado默认自动推导编译顺序，但以下文件必须最先编译：
+#
+#   ☆ ibex_pkg.sv（定义全局 package ibex_pkg，被所有Ibex模块导入）
+#
+# 建议在Vivado中将 ibex_pkg.sv 设置为 Global Include 或使用以下属性：
+#   右键文件 → Set Global Include
+#
+# 对于 fault_count.v：
+#   右键文件 → Set File Type → Verilog（不是SystemVerilog）
+
+# ----------------------------------------------------------------------------
+# 五、Vivado Define Macros（可选，Vivado默认已定义SYNTHESIS）
+# ----------------------------------------------------------------------------
+# 在 Tools → Settings → General → Verilog Options → Verilog Define Macros 中：
+#   不需要额外定义。Vivado 综合时自动定义 SYNTHESIS，
+#   这会触发 prim_assert_dummy_macros.svh 和 DV_FCOV_DISABLE。
+
+# ----------------------------------------------------------------------------
+# 六、Xilinx IP 清单（通过 IP Catalog 生成）
+# ----------------------------------------------------------------------------
+#
+#   IP名称                  | Vivado IP 目录              | 用途
+#   ----------------------- | --------------------------- | ------------------
+#   Clocking Wizard         | clk_wiz_0                  | 时钟生成（MMCM/PLL）
+#   SEM IP                  | sem_ultra_0_example_design | 故障注入控制器
+#   (可选) VIO              | vio_0                      | 调试信号监视
+#
+#   clk_wiz_0 端口需求（参考C906设计）：
+#     clk_in1_p / clk_in1_n : 差分输入时钟
+#     clk_out1 : CPU核心时钟 (e.g. 50-100 MHz)
+#     clk_out2 : (未使用)
+#     clk_out3 : SEM IP时钟
+#     clk_out4 : fault_count系统时钟 (e.g. 100 MHz)
+#     clk_out5 : (未使用 / VIO)
+#     resetn   : 外部复位
+#     locked   : PLL锁定指示
+
+# ----------------------------------------------------------------------------
+# 七、设计文件总数
+# ----------------------------------------------------------------------------
+#  SystemVerilog 源文件 (.sv): 22 个
+#  Verilog 源文件     (.v):   1 个
+#  Verilog 头文件     (.svh):  4 个
+#  ----------------------------------
+#  总计                       27 个
+#  约束文件           (.xdc):  1 个（见 ibex_fi.xdc）
+#  Xilinx IP:                  3 个（需IP Catalog生成）
